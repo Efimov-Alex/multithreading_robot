@@ -2,16 +2,40 @@ import java.util.*;
 
 public class Main {
     public static List<Thread> threadList;
-
     public static int maxKey = 0;
-
     public static int maxValue = 0;
-
     public static final Map<Integer, Integer> sizeToFreq = new HashMap<>();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         threadList = new ArrayList<>();
-        //    sizeToFreq = new HashMap<>();
+
+        Runnable maxrequency = () -> {
+            int maxKeyNow = 0;
+            int maxValueNow = 0;
+
+            while (!Thread.interrupted()) {
+                synchronized (sizeToFreq) {
+                    try {
+                        sizeToFreq.wait();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                for (Map.Entry<Integer, Integer> entry : sizeToFreq.entrySet()) {
+                    Integer key = entry.getKey();
+                    Integer value = entry.getValue();
+                    if (value > maxValueNow) {
+                        maxKeyNow = key;
+                        maxValueNow = value;
+                    }
+                }
+                System.out.println("Самое частое количество повторений " + maxKeyNow + " (встретилось " +
+                        maxValueNow + " раз)");
+            }
+
+        };
+
+        Thread maxThread = new Thread(maxrequency);
 
         Runnable logic = () -> {
             String text = generateRoute("RLRFR", 100);
@@ -31,14 +55,32 @@ public class Main {
             }
 
             System.out.println("колличество букв R - " + count);
+
+            synchronized (sizeToFreq) {
+                sizeToFreq.notify();
+            }
         };
+
+        maxThread.start();
 
         for (int i = 0; i < 1000; i++) {
             Thread thread = new Thread(logic);
             thread.start();
+            Thread.sleep(30);
             threadList.add(thread);
         }
 
+
+        for (Thread thread : threadList) {
+            thread.join();
+        }
+
+        synchronized (sizeToFreq) {
+            sizeToFreq.notifyAll();
+        }
+        Thread.sleep(500);
+
+        maxThread.interrupt();
 
         for (Map.Entry<Integer, Integer> entry : sizeToFreq.entrySet()) {
             Integer key = entry.getKey();
